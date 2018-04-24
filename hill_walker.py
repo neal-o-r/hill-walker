@@ -1,7 +1,6 @@
 import rasterio
 import numpy as np
-from scipy.optimize import approx_fprime
-from functools import partial
+import matplotlib.pyplot as plt
 
 src = rasterio.open('./data/srtm_35_02.tif')
 band = src.read(1)
@@ -21,18 +20,15 @@ def get_pt():
                 return get_pt()
         return pt
 
-def grad(pt, eps=1e-2):
-        elev1 = elevation((pt[0] + eps, pt[1]))
-        elev2 = elevation((pt[0] - eps, pt[1]))
-        elev3 = elevation((pt[0], pt[1] + eps))
-        elev4 = elevation((pt[0], pt[1] - eps))
+def grad(pt, eps=1e-3):
+        x, y = pt[0], pt[1]
+        x_p = elevation((x+eps, y)) / elevation((x-eps, y)) - 1
+        y_p = elevation((x, y+eps)) / elevation((x, y-eps)) - 1
 
-        lat_slope = elev1 / elev2
-        lon_slope = elev3 / elev4
+        return np.asarray((x_p, y_p))
 
-        return np.asarray((lat_slope, lon_slope))
 
-def descent(f, X=None, lr=0.1, maxiter=1000, eps=0.01):
+def descent(f, X=None, lr=0.1, maxiter=1000, eps=1e-5):
 
         if X is None:
                 X = get_pt()
@@ -40,7 +36,7 @@ def descent(f, X=None, lr=0.1, maxiter=1000, eps=0.01):
         i = 1
         delta = 1
         path = [list(X) + [elevation(X)]]
-        while i < maxiter and delta > eps and elevation(X) >= 0:
+        while i < maxiter and delta > eps and elevation(X) >= 5:
                 step = grad(X) * lr
                 i += 1
                 delta = np.abs(grad(X-step)).sum()
@@ -50,7 +46,7 @@ def descent(f, X=None, lr=0.1, maxiter=1000, eps=0.01):
         return path
 
 
-def momentum(f, X=None, lr=0.1, mom=0.1, maxiter=1000, eps=0.01):
+def momentum(f, X=None, lr=0.1, mom=0.1, maxiter=1000, eps=0.001):
 
         if X is None:
                 X = get_pt()
@@ -77,6 +73,7 @@ def write(path):
 
 if __name__ == '__main__':
 
-        path = momentum(elevation, X=pt, lr=0.001, mom=0.5)
+        path = momentum(elevation, mom=0.95, lr=0.1, X=[51.999447, -9.742744])
         write(path)
-
+        h = [p[-1] if p[-1] > 0 else 0 for p in path]
+#        plt.plot(h)
